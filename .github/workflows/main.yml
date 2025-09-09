@@ -1,4 +1,4 @@
-name: 构建kirin970通用内核 (test)
+name: 构建华为kirin970通用内核 (test)
 
 on:
   workflow_dispatch:
@@ -9,15 +9,13 @@ jobs:
     runs-on: ubuntu-22.04
 
     env:
-     #CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
-     #CCACHE_NOHASHDIR: "true"
-     #CCACHE_MAXSIZE: "4G"
-     #CCACHE_HARDLINK: "true"
-     KERNEL_CMDLINE: "ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- O=out"
+      #CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
+      #CCACHE_NOHASHDIR: "true"
+      #CCACHE_MAXSIZE: "4G"
+      #CCACHE_HARDLINK: "true"
+      KERNEL_CMDLINE: "ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- O=out"
 
-      
     steps:
-
       - name: Get branch
         id: branch
         uses: tj-actions/branch-names@v8
@@ -27,7 +25,7 @@ jobs:
         with:
           swap-size-gb: 15
 
-      - name: Setup environment
+      - name: 安装系统环境依赖
         run: |
           sudo apt-get update
           sudo apt install gcc-arm-linux-gnueabi
@@ -43,25 +41,25 @@ jobs:
           mkdir -p $GITHUB_WORKSPACE/workdir
           echo "BUILD_TIME=$(date +%Y%m%d%H%M)" >> $GITHUB_ENV
 
-      - name: Get tool
+      - name: 下载并安装编译工具
         run: |
           git clone https://github.com/HoleHolo/ToolChains.git $(pwd)/ToolChain --depth=1 -b main
-          
-      - name: setting time
+
+      - name: 设置系统时间
         id: get_time
         run: |
-         echo "TIME=$(TZ=UTC-8 date +%Y%m%d)" >> $GITHUB_OUTPUT
+          echo "TIME=$(TZ=UTC-8 date +%Y%m%d)" >> $GITHUB_OUTPUT
 
-      - name: Get source
+      - name: 拉取源码仓库
         run: |
           git clone --recursive https://github.com/Winkmoon/huawei-kirin970-kernel-emui9.1.git \
           -b main \
           --depth 1 $GITHUB_WORKSPACE/workdir/source
 
-      - name: Install SukiSU
+      - name: 集成SukiSU并设置相关属性
         run: |
           cd $GITHUB_WORKSPACE/workdir/source
-          sed -i "\$s|echo \"\\\$res\"|echo \"-Xinran_StarBai_nabu\"|" ./scripts/setlocalversion
+          sed -i "\$s|echo \"\\\$res\"|echo \"-Xinran_StarBai_Kirin970\"|" ./scripts/setlocalversion
           rm -rf KernelSU
           curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s nongki
           cd ./KernelSU
@@ -74,7 +72,7 @@ jobs:
           echo "CONFIG_MODULE_SIG_ALL=n" >> ./arch/arm64/configs/merge_kirin970_defconfig
           echo "CONFIG_KSU_TRACEPOINT_HOOK=y" >> ./arch/arm64/configs/merge_kirin970_defconfig
 
-      - name: Build kernel
+      - name: 构建麒麟970内核
         run: |
           export PATH=$(pwd)/ToolChain/bin/:$PATH
           export KBUILD_BUILD_HOST=欣然love白
@@ -88,5 +86,53 @@ jobs:
       - name: 上传构建成品
         uses: actions/upload-artifact@v4
         with:
-         name: kernel-${{ steps.get_time.outputs.TIME }}
-         path: "$GITHUB_WORKSPACE/workdir/source/kernel-*.img"
+          name: kernel-${{ steps.get_time.outputs.TIME }}
+          path: "$GITHUB_WORKSPACE/workdir/source/kernel-*.img"
+
+      - name: 获取系统信息
+        id: system-info
+        run: |
+          echo "os-name=$(lsb_release -ds)" >> $GITHUB_OUTPUT
+          echo "toolchain-version=$($(pwd)/ToolChain/bin/aarch64-linux-gnu-gcc --version | head -n1 | awk '{print $4}')" >> $GITHUB_OUTPUT
+
+      - name: 创建发布
+        id: create-release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: kernel-${{ steps.get_time.outputs.TIME }}
+          release_name: Kernel Build ${{ steps.get_time.outputs.TIME }}
+          draft: false
+          prerelease: false
+          body: |
+            ## 内核镜像信息
+            - **编译时间**: ${{ steps.get_time.outputs.TIME }}
+            - **编译作者**: 酷安@Xinran_StarBai
+            - **内核名称**: -Xinran_StarBai_Kirin970
+            - **发布时间**: ${{ github.event.head_commit.timestamp }}
+            - **编译系统**: ${{ steps.system-info.outputs.os-name }}
+            - **编译工具链版本**: ${{ steps.system-info.outputs.toolchain-version }}
+            
+            ## 特性说明
+            - 集成 SukiSU 3.1.9-ed3536d5@nongki 版本
+            - 使用 TRACEPOINT 钩子
+            - 不包含 kpm 和 susfs
+            
+            ## 注意事项
+            ####################################################################
+            如需使用，大部分情况下您需要降级到 9.1.0.312或向下版本
+            版本不对应时由于与 HAL 层的兼容问题手机无法连接加密的 WiFi
+            如果您不想降级，请考虑使用 Magisk 或尝试刷入旧版本vendor镜像
+            ####################################################################
+            请根据你的设备型号和系统版本选择合适的镜像进行刷入。刷入前建议备份重要数据
+
+      - name: 上传发布资产
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create-release.outputs.upload_url }}
+          asset_path: ${{ github.workspace }}/workdir/source/kernel-${{ steps.get_time.outputs.TIME }}-enforcing.img
+          asset_name: kernel-${{ steps.get_time.outputs.TIME }}-enforcing.img
+          asset_content_type: application/octet-stream
