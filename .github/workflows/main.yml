@@ -7,14 +7,6 @@ jobs:
   build:
     name: Build Kernel
     runs-on: ubuntu-20.04
-
-    env:
-      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
-      CCACHE_NOHASHDIR: "true"
-      CCACHE_MAXSIZE: "4G"
-      CCACHE_HARDLINK: "true"
-      KERNEL_CMDLINE: "ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- O=out"
-
       
     steps:
 
@@ -82,13 +74,22 @@ jobs:
           export PATH=$(pwd)/ToolChain/bin/:$PATH
           export KBUILD_BUILD_HOST=欣然love白
           export KBUILD_BUILD_USER=kuan-@Xinran_StarBai
+
+          export CCACHE_COMPILERCHECK=%compiler% -dumpmachine; %compiler% -dumpversion
+          export CCACHE_NOHASHDIR=true
+          export CCACHE_MAXSIZE=4G
+          export CCACHE_HARDLINK=true
+          export KERNEL_CMDLINE=ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- O=out
+
+
+          
           cd $GITHUB_WORKSPACE/workdir/source
           make $KERNEL_CMDLINE merge_kirin970_defconfig
           make $KERNEL_CMDLINE -j$(nproc --all)
           tools/mkbootimg --kernel out/arch/arm64/boot/Image.gz --base 0x0 --cmdline "loglevel=4 initcall_debug=n page_tracker=on unmovable_isolate1=2:192M,3:224M,4:256M printktimer=0xfff0a000,0x534,0x538 androidboot.selinux=enforcing buildvariant=user" --tags_offset 0x07A00000 --kernel_offset 0x00080000 --ramdisk_offset 0x07C00000 --header_version 1 --os_version 9 --os_patch_level 2019-05-05  --output kernel-${{ steps.get_time.outputs.TIME }}-enforcing.img
 
       - name: 上传构建成品
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v8
         with:
          name: kernel-${{ steps.get_time.outputs.TIME }}
          path: "kernel-*.img"
