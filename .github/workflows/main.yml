@@ -1,0 +1,94 @@
+name: 构建华为*荣耀kirin970通用内核 (test)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Kernel
+    runs-on: ubuntu-20.04
+
+    env:
+      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
+      CCACHE_NOHASHDIR: "true"
+      CCACHE_MAXSIZE: "4G"
+      CCACHE_HARDLINK: "true"
+      KERNEL_CMDLINE: "ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- O=out"
+
+      
+    steps:
+
+      - name: Get branch
+        id: branch
+        uses: tj-actions/branch-names@v8
+
+      - name: Set SWAP
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 15
+
+      - name: Setup environment
+        run: |
+          sudo apt-get update
+          sudo apt install gcc-arm-linux-gnueabi
+          sudo apt install make python2 git bc ccache curl lib32ncurses5-dev libncurses5 libncurses5-dev -y
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository -y ppa:deadsnakes/ppa
+          sudo apt-get update
+          sudo apt-get install -y \
+            git build-essential make bc python2.7 python3 \
+            libncurses5-dev lib32z1-dev gcc-multilib g++-multilib \
+            flex bison libssl-dev device-tree-compiler zip
+          sudo ln -sf /usr/bin/python2.7 /usr/bin/python2
+          mkdir -p $GITHUB_WORKSPACE/workdir
+          echo "BUILD_TIME=$(date +%Y%m%d%H%M)" >> $GITHUB_ENV
+
+      - name: Get tool
+        run: |
+          git clone https://github.com/HoleHolo/ToolChains.git $(pwd)/ToolChain --depth=1 -b main
+          
+      - name: setting time
+        id: get_time
+        run: |
+         echo "TIME=$(TZ=UTC-8 date +%Y%m%d)" >> $GITHUB_OUTPUT
+
+      - name: Get source
+        run: |
+          git clone --recursive https://github.com/Winkmoon/huawei-kirin970-kernel-emui9.1.git \
+          -b main \
+          --depth 1 $GITHUB_WORKSPACE/workdir/source
+
+      - name: Install SukiSU
+        run: |
+          cd $GITHUB_WORKSPACE/workdir/source
+          sed -i "\$s|echo \"\\\$res\"|echo \"-Xinran_StarBai_nabu\"|" ./scripts/setlocalversion
+          rm -rf KernelSU
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s nongki
+          cd ./KernelSU
+          KSU_VERSION=$(expr $(/usr/bin/git rev-list --count main) + 10700)
+          export KSU_VERSION=$KSU_VERSION
+          sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=$KSU_VERSION/" kernel/Makefile
+          cd ..
+
+          echo "CONFIG_MODULE_SIG=n" >> ./arch/arm64/configs/merge_kirin970_defconfig
+          echo "CONFIG_MODULE_SIG_ALL=n" >> ./arch/arm64/configs/merge_kirin970_defconfig
+          echo "CONFIG_KSU_TRACEPOINT_HOOK=y" >> ./arch/arm64/configs/merge_kirin970_defconfig
+          echo "CONFIG_KPM=y" >> ./arch/arm64/configs/merge_kirin970_defconfig
+          echo "CONFIG_KALLSYMS=y" >> ./arch/arm64/configs/merge_kirin970_defconfig
+          echo "CONFIG_KALLSYMS_ALL=y" >> ./arch/arm64/configs/merge_kirin970_defconfig
+
+      - name: Build kernel
+        run: |
+          export PATH=$(pwd)/ToolChain/bin/:$PATH
+          export KBUILD_BUILD_HOST=欣然love白
+          export KBUILD_BUILD_USER=kuan-@Xinran_StarBai
+          
+          make $KERNEL_CMDLINE merge_kirin970_defconfig
+          make $KERNEL_CMDLINE -j$(nproc --all)
+          tools/mkbootimg --kernel out/arch/arm64/boot/Image.gz --base 0x0 --cmdline "loglevel=4 initcall_debug=n page_tracker=on unmovable_isolate1=2:192M,3:224M,4:256M printktimer=0xfff0a000,0x534,0x538 androidboot.selinux=enforcing buildvariant=user" --tags_offset 0x07A00000 --kernel_offset 0x00080000 --ramdisk_offset 0x07C00000 --header_version 1 --os_version 9 --os_patch_level 2019-05-05  --output kernel-${{ steps.get_time.outputs.TIME }}-enforcing.img
+
+      - name: 上传构建成品
+        uses: actions/upload-artifact@v4
+        with:
+         name: kernel-${{ steps.get_time.outputs.TIME }}
+         path: "kernel-*.img"
