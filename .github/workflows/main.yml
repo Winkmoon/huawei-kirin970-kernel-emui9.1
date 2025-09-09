@@ -7,6 +7,14 @@ jobs:
   build:
     name: Build Kernel
     runs-on: ubuntu-22.04
+
+    env:
+     #CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
+     #CCACHE_NOHASHDIR: "true"
+     #CCACHE_MAXSIZE: "4G"
+     #CCACHE_HARDLINK: "true"
+     KERNEL_CMDLINE: "ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- O=out"
+
       
     steps:
 
@@ -74,14 +82,6 @@ jobs:
           export PATH=$(pwd)/ToolChain/bin/:$PATH
           export KBUILD_BUILD_HOST=欣然love白
           export KBUILD_BUILD_USER=kuan-@Xinran_StarBai
-
-          export CCACHE_COMPILERCHECK=%compiler% -dumpmachine; %compiler% -dumpversion
-          export CCACHE_NOHASHDIR=true
-          export CCACHE_MAXSIZE=4G
-          export CCACHE_HARDLINK=true
-          export KERNEL_CMDLINE=ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- O=out
-
-
           
           cd $GITHUB_WORKSPACE/workdir/source
           make $KERNEL_CMDLINE merge_kirin970_defconfig
