@@ -1,9 +1,7 @@
-name: Build Kernel (Experiment)
+name: 构建华为*荣耀kirin970通用内核 (Experiment)
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron:  '0 11 1/14 * *'
 
 jobs:
   build:
@@ -12,7 +10,7 @@ jobs:
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
-      CCACHE_MAXSIZE: "2G"
+      CCACHE_MAXSIZE: "4G"
       CCACHE_HARDLINK: "true"
       KERNEL_CMDLINE: "ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- O=out"
 
@@ -24,10 +22,10 @@ jobs:
         submodules: 'true'
         fetch-depth: 1
 
-    - name: Set Up ccache
+    - name: 设置缓存
       uses: hendrikmuhs/ccache-action@v1.2
 
-    - name: Install Dependencies
+    - name: 安装依赖
       run: |
         # 安装所需依赖包 | Install required dependency packages
         sudo apt-get update -y
@@ -37,19 +35,31 @@ jobs:
         # git clone https://github.com/ibnudz/aarch64-linux-android-4.9 $(pwd)/toolchain
         git clone https://github.com/HoleHolo/ToolChains.git $(pwd)/ToolChain --depth=1 -b main
 
-    - name: Get Current Time
+    - name: 设置时间
       id: get_time
       run: |
         echo "TIME=$(TZ=UTC-8 date +%Y%m%d)" >> $GITHUB_OUTPUT
 
-    - name: Build Android Kernel
+    - name: 添加sukisu启用部分内核配置并执行编译
       run: |
        # 配置 KernelSU | Configure KernelSU
        rm -rf ./KernelSU
-       curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
+       sed -i "\$s|echo \"\\\$res\"|echo \"-Xinran_StarBai_huawei-kirin970\"|" ./scripts/setlocalversion
+       curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s nongki
+       echo "CONFIG_KSU_TRACEPOINT_HOOK=y" >> ./arch/arm64/configs/merge_kirin970_defconfig
+       echo "CONFIG_KPM=y" >> ./arch/arm64/configs/merge_kirin970_defconfig
+       echo "CONFIG_MODULE_SIG=n" >> ./arch/arm64/configs/merge_kirin970_defconfig
+       echo "CONFIG_MODULE_SIG_ALL=n" >> ./arch/arm64/configs/merge_kirin970_defconfig
+          cd ./KernelSU
+          KSU_VERSION=$(expr $(/usr/bin/git rev-list --count main) + 10700)
+          export KSU_VERSION=$KSU_VERSION
+          sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=$KSU_VERSION/" kernel/Makefile
+          cd ..
 
        # 设置环境变量 | Set environment variables
        export PATH=$(pwd)/ToolChain/bin/:$PATH
+       export KBUILD_BUILD_HOST=欣然love白
+       export KBUILD_BUILD_USER=kuan-@Xinran_StarBai
 
        # 执行编译操作 | Process compilation operations
        make $KERNEL_CMDLINE merge_kirin970_defconfig
@@ -59,7 +69,7 @@ jobs:
        # tools/mkbootimg --kernel out/arch/arm64/boot/Image.gz --base 0x0 --cmdline "loglevel=4 initcall_debug=n page_tracker=on unmovable_isolate1=2:192M,3:224M,4:256M printktimer=0xfff0a000,0x534,0x538 androidboot.selinux=permissive buildvariant=user" --tags_offset 0x07A00000 --kernel_offset 0x00080000 --ramdisk_offset 0x07C00000 --header_version 1 --os_version 9 --os_patch_level 2019-05-05  --output kernel-${{ steps.get_time.outputs.TIME }}-permissive.img
        tools/mkbootimg --kernel out/arch/arm64/boot/Image.gz --base 0x0 --cmdline "loglevel=4 initcall_debug=n page_tracker=on unmovable_isolate1=2:192M,3:224M,4:256M printktimer=0xfff0a000,0x534,0x538 androidboot.selinux=enforcing buildvariant=user" --tags_offset 0x07A00000 --kernel_offset 0x00080000 --ramdisk_offset 0x07C00000 --header_version 1 --os_version 9 --os_patch_level 2019-05-05  --output kernel-${{ steps.get_time.outputs.TIME }}-enforcing.img
 
-    - name: Upload Kernel Image Zip File
+    - name: 上传构建成品
       uses: actions/upload-artifact@v3
       with:
         name: kernel-${{ steps.get_time.outputs.TIME }}
