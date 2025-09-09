@@ -1,11 +1,11 @@
-name: 构建华为*荣耀kirin970通用内核 (Experiment)
+name: 构建kirin970通用内核 (Experiment)
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
