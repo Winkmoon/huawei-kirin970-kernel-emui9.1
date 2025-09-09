@@ -73,8 +73,6 @@ jobs:
           echo "CONFIG_MODULE_SIG=n" >> ./arch/arm64/configs/merge_kirin970_defconfig
           echo "CONFIG_MODULE_SIG_ALL=n" >> ./arch/arm64/configs/merge_kirin970_defconfig
           echo "CONFIG_KSU_TRACEPOINT_HOOK=y" >> ./arch/arm64/configs/merge_kirin970_defconfig
-          echo "CONFIG_KALLSYMS=y" >> ./arch/arm64/configs/merge_kirin970_defconfig
-          echo "CONFIG_KALLSYMS_ALL=y" >> ./arch/arm64/configs/merge_kirin970_defconfig
 
       - name: Build kernel
         run: |
@@ -91,4 +89,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
          name: kernel-${{ steps.get_time.outputs.TIME }}
-         path: "kernel-*.img"
+         path: "$GITHUB_WORKSPACE/workdir/source/kernel-*.img"
