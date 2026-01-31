@@ -59,9 +59,9 @@ jobs:
           rm -rf KernelSU
           curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
 
-          echo "CONFIG_MODULE_SIG=n" >> ./arch/arm64/configs/merge_kirin970_stable_defconfig
-          echo "CONFIG_MODULE_SIG_ALL=n" >> ./arch/arm64/configs/merge_kirin970_stable_defconfig
-          echo "CONFIG_KSU=y" >> ./arch/arm64/configs/merge_kirin970_stable_defconfig
+          echo "CONFIG_MODULE_SIG=n" >> ./arch/arm64/configs/merge_kirin970_defconfig
+          echo "CONFIG_MODULE_SIG_ALL=n" >> ./arch/arm64/configs/merge_kirin970_defconfig
+          echo "CONFIG_KSU=y" >> ./arch/arm64/configs/merge_kirin970_defconfig
       - name: 构建麒麟970内核
         run: |
           export PATH=$(pwd)/ToolChain/bin/:$PATH
@@ -70,7 +70,7 @@ jobs:
           
           cd $GITHUB_WORKSPACE/workdir/source
           
-          make $KERNEL_CMDLINE merge_kirin970_stable_defconfig
+          make $KERNEL_CMDLINE merge_kirin970_defconfig
           make $KERNEL_CMDLINE -j$(nproc --all)
           tools/mkbootimg --kernel out/arch/arm64/boot/Image.gz --base 0x0 --cmdline "loglevel=4 initcall_debug=n page_tracker=on unmovable_isolate1=2:192M,3:224M,4:256M printktimer=0xfff0a000,0x534,0x538 androidboot.selinux=enforcing buildvariant=user" --tags_offset 0x07A00000 --kernel_offset 0x00080000 --ramdisk_offset 0x07C00000 --header_version 1 --os_version 9 --os_patch_level 2019-05-05  --output kernel-${{ steps.get_time.outputs.TIME }}-enforcing.img
       - name: 上传构建成品
@@ -104,8 +104,7 @@ jobs:
             - **编译工具链版本**: ${{ steps.system-info.outputs.toolchain-version }}
             
             ## 特性说明
-            - 集成 SukiSU 3.1.9-ed3536d5@nongki 版本
-            - 使用 TRACEPOINT 钩子
+            - 集成rksu版本
             - 不包含 kpm 和 susfs
             
             ## 注意事项
